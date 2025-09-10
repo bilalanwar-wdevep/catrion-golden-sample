@@ -9,11 +9,15 @@ interface FormData {
   menu: string
 }
 
-const SystemDetailsForm = () => {
-  const [airline, setAirline] = useState('')
-  const [flightNumber, setFlightNumber] = useState('')
-  const [flightClass, setFlightClass] = useState('')
-  const [menu, setMenu] = useState('')
+interface SystemDetailsFormProps {
+  onProceedToCamera: (formData: FormData) => void
+}
+
+const SystemDetailsForm = ({ onProceedToCamera }: SystemDetailsFormProps) => {
+  const [airline, setAirline] = useState('SAUDI AIRLINES')
+  const [flightNumber, setFlightNumber] = useState('KS124')
+  const [flightClass, setFlightClass] = useState('First Class')
+  const [menu, setMenu] = useState('F41QB400D9')
   const [showConfirmation, setShowConfirmation] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -26,9 +30,8 @@ const SystemDetailsForm = () => {
   }
 
   const handleProceed = () => {
-    // Handle final submission logic here
-    console.log('Final submission:', { airline, flightNumber, flightClass, menu })
-    // You can add API call or navigation logic here
+    // Pass form data to parent component
+    onProceedToCamera(formData)
   }
 
   const formData: FormData = {
