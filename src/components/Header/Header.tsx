@@ -1,5 +1,5 @@
 import qssLogo from '../../assets/images/qss-logo.png'
-import catrionLogo from '../../assets/images/catrion-blue.svg'
+import catrionLogo from '../../assets/images/catrion-white.png'
 
 const Header = () => {
   return (
