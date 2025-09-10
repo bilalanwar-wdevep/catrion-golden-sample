@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import FormInput from './FormInput'
+import SearchableDropdown from './SearchableDropdown'
 import SystemDetailsConfirmation from './SystemDetailsConfirmation'
 
 interface FormData {
@@ -19,6 +19,52 @@ const SystemDetailsForm = ({ onProceedToCamera }: SystemDetailsFormProps) => {
   const [flightClass, setFlightClass] = useState('First Class')
   const [menu, setMenu] = useState('F41QB400D9')
   const [showConfirmation, setShowConfirmation] = useState(false)
+
+  // Dummy data for dropdowns
+  const airlineOptions = [
+    { value: 'SAUDI AIRLINES', label: 'SAUDI AIRLINES' },
+    { value: 'EMIRATES', label: 'EMIRATES' },
+    { value: 'QATAR AIRWAYS', label: 'QATAR AIRWAYS' },
+    { value: 'ETIHAD AIRWAYS', label: 'ETIHAD AIRWAYS' },
+    { value: 'TURKISH AIRLINES', label: 'TURKISH AIRLINES' },
+    { value: 'LUFTHANSA', label: 'LUFTHANSA' },
+    { value: 'BRITISH AIRWAYS', label: 'BRITISH AIRWAYS' },
+    { value: 'AIR FRANCE', label: 'AIR FRANCE' },
+    { value: 'KLM', label: 'KLM' },
+    { value: 'SINGAPORE AIRLINES', label: 'SINGAPORE AIRLINES' }
+  ]
+
+  const flightNumberOptions = [
+    { value: 'KS124', label: 'KS124' },
+    { value: 'SV123', label: 'SV123' },
+    { value: 'EK456', label: 'EK456' },
+    { value: 'QR789', label: 'QR789' },
+    { value: 'EY321', label: 'EY321' },
+    { value: 'TK654', label: 'TK654' },
+    { value: 'LH987', label: 'LH987' },
+    { value: 'BA456', label: 'BA456' },
+    { value: 'AF123', label: 'AF123' },
+    { value: 'KL789', label: 'KL789' }
+  ]
+
+  const flightClassOptions = [
+    { value: 'Economy', label: 'Economy' },
+    { value: 'Business', label: 'Business' },
+    { value: 'First Class', label: 'First Class' }
+  ]
+
+  const menuOptions = [
+    { value: 'F41QB400D9', label: 'F41QB400D9' },
+    { value: 'M25XC300B7', label: 'M25XC300B7' },
+    { value: 'V18KL200A5', label: 'V18KL200A5' },
+    { value: 'H33MN500C2', label: 'H33MN500C2' },
+    { value: 'P67RT800E4', label: 'P67RT800E4' },
+    { value: 'Q92UV100F6', label: 'Q92UV100F6' },
+    { value: 'S15WX400G8', label: 'S15WX400G8' },
+    { value: 'T48YZ700H1', label: 'T48YZ700H1' },
+    { value: 'U71AB200I3', label: 'U71AB200I3' },
+    { value: 'W94CD500J5', label: 'W94CD500J5' }
+  ]
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,32 +102,36 @@ const SystemDetailsForm = ({ onProceedToCamera }: SystemDetailsFormProps) => {
       <h4 className="text-xl font-bold text-white mb-6">System Details</h4>
       
       <form onSubmit={handleSubmit} className="space-y-4 rounded-lg bg-[#242835] py-4 px-4">
-        <FormInput
+        <SearchableDropdown
           label="Airline"
           value={airline}
           onChange={setAirline}
           placeholder="Pick Airline Here"
+          options={airlineOptions}
         />
 
-        <FormInput
+        <SearchableDropdown
           label="Flight Number"
           value={flightNumber}
           onChange={setFlightNumber}
           placeholder="Pick Flight No. Here"
+          options={flightNumberOptions}
         />
 
-        <FormInput
+        <SearchableDropdown
           label="Flight Class"
           value={flightClass}
           onChange={setFlightClass}
           placeholder="Pick Flight Class Here"
+          options={flightClassOptions}
         />
 
-        <FormInput
+        <SearchableDropdown
           label="Menu"
           value={menu}
           onChange={setMenu}
           placeholder="Menu Code"
+          options={menuOptions}
         />
 
         <button 

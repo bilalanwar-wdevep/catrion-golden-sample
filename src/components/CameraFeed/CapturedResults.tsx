@@ -47,7 +47,7 @@ const CapturedResults = ({ onBack, onNext }: CapturedResultsProps) => {
       {/* Results List */}
       <div className="flex-1 space-y-4 mb-6">
         {capturedItems.map((item) => (
-          <div key={item.id} className="bg-[#242835] rounded-lg p-4 flex items-center space-x-4">
+          <div key={item.id} className="bg-[#242835]  p-4 flex items-center space-x-4 border-b border-gray-700">
             {/* Placeholder Image */}
             <div className="w-16 h-16 bg-gray-400 rounded-lg flex-shrink-0"></div>
             
@@ -77,13 +77,13 @@ const CapturedResults = ({ onBack, onNext }: CapturedResultsProps) => {
         <span className="text-white font-medium ">Percentage Data</span>
         <div className="flex items-center space-x-4">
         
-          <div className="bg-[#171C2A] text-white px-4 py-3 rounded-lg flex-1 ">
-            75%
+          <div className="bg-[#171C2A] text-white px-4 py-2 rounded-lg flex-1 ">
+            100%
           </div>
-          <div className="flex space-x-4">
+          <div className="flex space-x-4 ">
             <button
               onClick={onBack}
-              className="bg-[#171C2A] hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 cursor-pointer flex items-center space-x-2"
+              className="bg-[#171C2A] hover:bg-gray-700 text-white font-semibold py-2 px-8 rounded-lg transition-colors duration-200 cursor-pointer flex items-center space-x-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -93,7 +93,7 @@ const CapturedResults = ({ onBack, onNext }: CapturedResultsProps) => {
             
             <button
               onClick={onNext}
-              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 cursor-pointer"
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-18 rounded-lg transition-colors duration-200 cursor-pointer"
             >
               Next
             </button>

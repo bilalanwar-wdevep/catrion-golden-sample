@@ -29,7 +29,7 @@ const CameraFeedPanel = ({ flightData }: CameraFeedPanelProps) => {
           <button className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 cursor-pointer">
             Capture Stream
           </button>
-          <button className="bg-[#1E2330] hover:border-gray-100 text-white-500 font-semibold py-2 px-4 rounded-lg transition-colors duration-200 cursor-pointer flex items-center space-x-2">
+          <button className="bg-[#1E2330] hover:bg-gray-400 text-white-500 hover:text-black font-semibold py-2 px-4 rounded-lg transition-colors duration-200 cursor-pointer flex items-center space-x-2">
             <span>Select</span>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
