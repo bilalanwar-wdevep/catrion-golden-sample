@@ -12,16 +12,17 @@ interface FlightData {
 }
 
 function App() {
-  const [currentView, setCurrentView] = useState<'form' | 'camera'>('form')
-  const [flightData, setFlightData] = useState<FlightData | null>(null)
-
-  const handleProceedToCamera = (formData: FlightData) => {
-    setFlightData(formData)
-    setCurrentView('camera')
+  // Dummy flight data for testing camera feed
+  const flightData: FlightData = {
+    airline: 'SAUDI AIRLINES',
+    flightNumber: 'KS124',
+    flightClass: 'First Class',
+    menu: 'F41QB400D9'
   }
 
   const handleBackToForm = () => {
-    setCurrentView('form')
+    // For now, just log - you can implement navigation back to form later
+    console.log('Back to form')
   }
 
   const handleNextFromCamera = () => {
@@ -29,26 +30,14 @@ function App() {
     console.log('Proceeding from camera feed')
   }
 
-  if (currentView === 'camera' && flightData) {
-    return (
-      <div className="h-screen w-screen bg-gray-900 text-white overflow-hidden flex flex-col">
-        <Header />
-        <CameraFeed 
-          flightData={flightData}
-          onBack={handleBackToForm}
-          onNext={handleNextFromCamera}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="h-screen w-screen bg-gray-900 text-white overflow-hidden flex flex-col">
       <Header />
-      
-      <main className="flex-1 flex items-center justify-center p-6 overflow-hidden">
-        <SystemDetailsForm onProceedToCamera={handleProceedToCamera} />
-      </main>
+      <CameraFeed 
+        flightData={flightData}
+        onBack={handleBackToForm}
+        onNext={handleNextFromCamera}
+      />
     </div>
   )
 }
