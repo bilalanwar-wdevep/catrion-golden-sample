@@ -113,25 +113,52 @@ const CameraFeedPanel = ({ flightData, onImageCaptured, retakeMode = false }: Ca
       const context = canvas.getContext('2d')
       
       if (context && videoRef.current) {
-        // Get the displayed video dimensions (not natural dimensions)
+        // Get the displayed video dimensions
         const videoRect = videoRef.current.getBoundingClientRect()
         const containerRect = videoRef.current.parentElement?.getBoundingClientRect()
         
         if (containerRect) {
+          // Set canvas to container size (what we see)
           canvas.width = containerRect.width
           canvas.height = containerRect.height
           
+          // Get video natural dimensions
+          const videoNaturalWidth = videoRef.current.videoWidth
+          const videoNaturalHeight = videoRef.current.videoHeight
+          
           console.log('📐 Video natural dimensions:', { 
-            width: videoRef.current.videoWidth, 
-            height: videoRef.current.videoHeight 
+            width: videoNaturalWidth, 
+            height: videoNaturalHeight 
           })
-          console.log('📐 Video displayed dimensions:', { 
+          console.log('📐 Container dimensions:', { 
             width: containerRect.width, 
             height: containerRect.height 
           })
           
-          // Draw the video to match the displayed size
-          context.drawImage(videoRef.current, 0, 0, containerRect.width, containerRect.height)
+          // Calculate how object-cover scales the video
+          const containerAspect = containerRect.width / containerRect.height
+          const videoAspect = videoNaturalWidth / videoNaturalHeight
+          
+          let sourceX = 0, sourceY = 0, sourceWidth = videoNaturalWidth, sourceHeight = videoNaturalHeight
+          
+          if (videoAspect > containerAspect) {
+            // Video is wider - crop left/right (like object-cover)
+            sourceWidth = videoNaturalHeight * containerAspect
+            sourceX = (videoNaturalWidth - sourceWidth) / 2
+          } else {
+            // Video is taller - crop top/bottom (like object-cover)
+            sourceHeight = videoNaturalWidth / containerAspect
+            sourceY = (videoNaturalHeight - sourceHeight) / 2
+          }
+          
+          console.log('✂️ Object-cover crop area:', { sourceX, sourceY, sourceWidth, sourceHeight })
+          
+          // Draw the video with the same cropping as object-cover
+          context.drawImage(
+            videoRef.current,
+            sourceX, sourceY, sourceWidth, sourceHeight,  // Source crop area
+            0, 0, containerRect.width, containerRect.height  // Destination (full canvas)
+          )
           
           // Convert to data URL
           const imageDataUrl = canvas.toDataURL('image/png')
@@ -364,15 +391,15 @@ const CameraFeedPanel = ({ flightData, onImageCaptured, retakeMode = false }: Ca
               Retake Mode
             </div>
           )}
-          <div className="flex items-center space-x-2 text-[#5A5D66]">
-            <span className="text-lg">|</span>
-            <span className="text-lg font-medium">{flightData.airline}</span>
-            <span className="text-sm">|</span>
-            <span className="text-lg font-medium">{flightData.flightNumber}</span>
-            <span className="text-sm">|</span>
-            <span className="text-lg font-medium">{flightData.flightClass}</span>
-            <span className="text-sm">|</span>
-            <span className="text-lg font-medium">{flightData.menu}</span>
+          <div className="flex items-center space-x-1 text-[#5A5D66] text-sm">
+            <span>|</span>
+            <span className="font-medium">{flightData.airline}</span>
+            <span>|</span>
+            <span className="font-medium">{flightData.flightNumber}</span>
+            <span>|</span>
+            <span className="font-medium">{flightData.flightClass}</span>
+            <span>|</span>
+            <span className="font-medium">{flightData.menu}</span>
           </div>
         </div>
         <div className="flex items-center space-x-2">

@@ -65,6 +65,12 @@ const CameraFeed = ({ flightData, onBack, onNext }: CameraFeedProps) => {
     setRetakeIndex(itemIndex)
   }
 
+  const handleResetAll = () => {
+    console.log('🔄 Reset all captured images requested')
+    setCapturedImages([])
+    setRetakeIndex(null)
+  }
+
   return (
     <div className="h-screen w-full bg-gray-900 text-white overflow-hidden flex flex-col">
       {/* Main Content - Two Panel Layout */}
@@ -85,6 +91,8 @@ const CameraFeed = ({ flightData, onBack, onNext }: CameraFeedProps) => {
             onNext={onNext} 
             capturedImages={capturedImages}
             onRetake={handleRetake}
+            retakeIndex={retakeIndex}
+            onResetAll={handleResetAll}
           />
         </div>
       </div>

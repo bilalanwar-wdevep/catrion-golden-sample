@@ -10,9 +10,11 @@ interface CapturedResultsProps {
   onNext: () => void
   capturedImages: CapturedItem[]
   onRetake: (itemIndex: number) => void
+  retakeIndex: number | null
+  onResetAll: () => void
 }
 
-const CapturedResults = ({ onBack, onNext, capturedImages, onRetake }: CapturedResultsProps) => {
+const CapturedResults = ({ onBack, onNext, capturedImages, onRetake, retakeIndex, onResetAll }: CapturedResultsProps) => {
   // Predefined meal menu items
   const menuItems = [
     {
@@ -46,8 +48,9 @@ const CapturedResults = ({ onBack, onNext, capturedImages, onRetake }: CapturedR
   const displayItems = menuItems.map((item, index) => ({
     ...item,
     capt_image: capturedImages[index]?.capt_image || '',
-    isActive: index === 0, // Only the first item is active
-    isCompleted: index < capturedImages.length // Mark completed items
+    isActive: retakeIndex === index, // Item being retaken is active (blue)
+    isCompleted: index < capturedImages.length && retakeIndex !== index, // Mark completed items (but not if being retaken)
+    isRetaking: retakeIndex === index // Track which item is being retaken
   }))
 
   console.log('🖼️ CapturedResults - capturedImages:', capturedImages.length)
@@ -67,14 +70,32 @@ const CapturedResults = ({ onBack, onNext, capturedImages, onRetake }: CapturedR
   return (
     <div className="bg-[#242835] rounded-lg p-6 h-full flex flex-col">
       {/* Header */}
-      <h3 className="text-xl font-bold text-white mb-6">Captured Results</h3>
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-bold text-white">Captured Results</h3>
+        <button
+          onClick={onResetAll}
+          className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg transition-colors duration-200 flex items-center space-x-2"
+          title="Reset all captured images"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span className="text-sm font-medium">Reset All</span>
+        </button>
+      </div>
 
       {/* Results List */}
       <div className="flex-1 space-y-4 mb-6 overflow-y-auto">
         {displayItems.map((item, index) => (
           <div 
             key={item.id} 
-            className="p-4 flex items-center space-x-4 border-b border-gray-700 transition-all duration-300 bg-[#171C2A] border-gray-600"
+            className={`p-4 flex items-center space-x-4 border-b transition-all duration-300 ${
+              item.isCompleted 
+                ? 'bg-green-900 bg-opacity-30 border-green-600' // Completed items - green tint
+                : item.isActive 
+                  ? 'bg-blue-900 bg-opacity-30 border-blue-600' // Active item - blue tint
+                  : 'bg-[#171C2A] border-gray-600 opacity-50' // Inactive items - dimmed
+            }`}
           >
             {/* Captured Image */}
             <div className="w-16 h-16 rounded-lg flex-shrink-0 overflow-hidden relative">
@@ -93,8 +114,16 @@ const CapturedResults = ({ onBack, onNext, capturedImages, onRetake }: CapturedR
                   />
                 </>
               ) : (
-                <div className="w-full h-full rounded-lg flex items-center justify-center bg-gray-400">
-                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={`w-full h-full rounded-lg flex items-center justify-center ${
+                  item.isActive 
+                    ? 'bg-blue-400' // Active item - blue placeholder
+                    : 'bg-gray-400' // Inactive items - gray placeholder
+                }`}>
+                  <svg className={`w-6 h-6 ${
+                    item.isActive 
+                      ? 'text-blue-600' // Active item - blue icon
+                      : 'text-gray-600' // Inactive items - gray icon
+                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
@@ -103,10 +132,25 @@ const CapturedResults = ({ onBack, onNext, capturedImages, onRetake }: CapturedR
             
             {/* Content */}
             <div className="flex-1">
-              <h4 className="font-bold text-lg mb-1 text-white">
+              <h4 className={`font-bold text-lg mb-1 ${
+                item.isCompleted 
+                  ? 'text-green-400' // Completed items - green text
+                  : item.isActive 
+                    ? 'text-blue-400' // Active item - blue text
+                    : 'text-gray-500' // Inactive items - dimmed gray text
+              }`}>
                 {item.title}
+                {item.isCompleted && (
+                  <span className="ml-2 text-green-400">✓</span>
+                )}
               </h4>
-              <p className="text-sm text-gray-300">
+              <p className={`text-sm ${
+                item.isCompleted 
+                  ? 'text-green-300' // Completed items - light green text
+                  : item.isActive 
+                    ? 'text-blue-300' // Active item - light blue text
+                    : 'text-gray-500' // Inactive items - dimmed gray text
+              }`}>
                 {item.description}
               </p>
             </div>
