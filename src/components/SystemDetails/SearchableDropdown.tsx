@@ -11,6 +11,7 @@ interface SearchableDropdownProps {
   onChange: (value: string) => void
   placeholder: string
   options: DropdownOption[]
+  disabled?: boolean
 }
 
 const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
@@ -18,7 +19,8 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   value,
   onChange,
   placeholder,
-  options
+  options,
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -56,14 +58,19 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
       <div className="relative">
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full bg-[#171C2A] rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left flex items-center justify-between"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          className={`w-full rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none text-left flex items-center justify-between transition-all duration-200 ${
+            disabled 
+              ? 'bg-[#0F1419] text-gray-500 cursor-not-allowed' 
+              : 'bg-[#171C2A] text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer'
+          }`}
         >
-          <span className={selectedOption ? 'text-white' : 'text-gray-400'}>
+          <span className={`transition-colors duration-200 ${disabled ? 'text-gray-500' : (selectedOption ? 'text-white' : 'text-gray-400')}`}>
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           <svg 
-            className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+            className={`w-5 h-5 transition-all duration-200 ${disabled ? 'text-gray-600' : 'text-gray-400'} ${isOpen ? 'rotate-180' : ''}`} 
             fill="none" 
             stroke="currentColor" 
             viewBox="0 0 24 24"
@@ -72,7 +79,7 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
           </svg>
         </button>
 
-        {isOpen && (
+        {isOpen && !disabled && (
           <div className="absolute z-10 w-full mt-1 bg-[#171C2A] border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
             {/* Search Input */}
             <div className="p-2 border-b border-gray-600">

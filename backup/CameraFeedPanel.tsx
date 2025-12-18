@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
@@ -10,38 +10,18 @@ interface ManualRectangle {
   color: string
 }
 
-interface RectangleData {
-  color: string
-  coordinates: [number, number, number, number]
-}
-
-interface Dish {
-  dish_id: string
-  name: string
-  type: string
-}
-
 interface CameraFeedPanelProps {
   flightData: {
     airline: string
     flightNumber: string
     flightClass: string
     menu: string
-    dishes?: Dish[]
   }
-  currentPercentage?: number // Food level percentage (100, 75, 50, 25)
   onColorMappingReady?: (mapping: ColorMapping, rectangles: DetectionRectangle[]) => void
   onMissingDishesUpdate?: (count: number) => void
   onManualRectanglesCountUpdate?: (count: number) => void
   onModelResults?: (results: any) => void
-  onMappingModeChange?: (isMappingMode: boolean, usedColors: string[], rectanglesData: RectangleData[]) => void
-  isMappingModeActive?: boolean
-  onResumeReady?: (resumeFn: () => void) => void
-  onResetReady?: (resetFn: () => void) => void
-  onCapturedImageChange?: (imageData: string) => void
-  onClearCapturedResults?: () => void
-  onTimeoutRedirect?: () => void // Callback when countdown timer reaches 0
-  onFoodLevelsUpdate?: (levels: number[]) => void // Callback to update food levels in parent
+  onMappingModeChange?: (isMappingMode: boolean, usedColors: string[]) => void
 }
 
 export interface ImageDimensions {
@@ -64,33 +44,18 @@ export interface ColorMapping {
   [detectionIndex: number]: string
 }
 
-const CameraFeedPanel = ({ 
-  flightData,
-  currentPercentage = 100, // Default to 100 if not provided
-  onColorMappingReady, 
-  onMissingDishesUpdate, 
-  onManualRectanglesCountUpdate, 
-  onModelResults, 
-  onMappingModeChange, 
-  isMappingModeActive = false, 
-  onResumeReady, 
-  onResetReady,
-  onCapturedImageChange,
-  onClearCapturedResults,
-  onTimeoutRedirect,
-  onFoodLevelsUpdate
-}: CameraFeedPanelProps) => {
+const CameraFeedPanel = ({ flightData, onColorMappingReady, onMissingDishesUpdate, onManualRectanglesCountUpdate, onModelResults, onMappingModeChange }: CameraFeedPanelProps) => {
   const [isCaptured, setIsCaptured] = useState(false)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [currentFrameName, setCurrentFrameName] = useState<string | null>(null)
   const [_modelResults, setModelResults] = useState<any>(null) // Stored for potential future use
-  const [isWaitingForModelResults, setIsWaitingForModelResults] = useState(false) // Loading state after capture
   const [imageDimensions, setImageDimensions] = useState<ImageDimensions | null>(null)
   const [detectionRectangles, setDetectionRectangles] = useState<DetectionRectangle[]>([])
   const [_colorMapping, setColorMapping] = useState<ColorMapping>({}) // Stored and exposed via callback for next step
   const [manualRectangles, setManualRectangles] = useState<ManualRectangle[]>([])
   const [missingDishes, setMissingDishes] = useState<number>(0)
   const [isDrawingModeEnabled, setIsDrawingModeEnabled] = useState(false)
+  const [isMappingMode, setIsMappingMode] = useState(false)
   const [selection, setSelection] = useState<{
     startX: number
     startY: number
@@ -99,47 +64,17 @@ const CameraFeedPanel = ({
   } | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   
-  // Countdown timer state for streaming duration warning
-  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null)
-  const countdownIntervalRef = useRef<number | null>(null)
-  
   // Socket connection state
   const [socket, setSocket] = useState<Socket | null>(null)
-  const socketRef = useRef<Socket | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
-  const [serverUrl] = useState('http://10.0.0.99:5000')
+  const [serverUrl] = useState('http://localhost:3001')
   const reconnectTimeoutRef = useRef<number | null>(null)
   const reconnectAttempts = useRef(0)
   const isMountedRef = useRef(true)
   const imageRef = useRef<HTMLImageElement | null>(null)
-  const isCapturedRef = useRef(false)
-  const stopStreamTimeoutRef = useRef<number | null>(null) // Track stop_streaming timeout
-  const currentFrameNameRef = useRef<string | null>(null) // Track current frame name
-  const currentPercentageRef = useRef<number>(100) // Track current percentage
-  const hasProcessedWelcomeRef = useRef(false) // Track if welcome message has been processed (only once)
 
   const MAX_RECONNECT_ATTEMPTS = 5
   const BASE_RECONNECT_DELAY = 2000
-
-  // Build streaming message data from actual flightData
-  const STREAMING_MESSAGE_DATA = useMemo(() => {
-    // Convert dishes array to menu_items format
-    const menu_items = flightData.dishes?.map(dish => ({
-      dish_id: dish.dish_id,
-      dish_name: dish.name
-    })) || []
-
-    return {
-      flight_details: {
-        flight_number: flightData.flightNumber
-      },
-      menu_details: {
-        menu_code: flightData.menu,
-        menu_item_count: menu_items.length,
-        menu_items: menu_items
-      }
-    }
-  }, [flightData.flightNumber, flightData.menu, flightData.dishes])
 
   // Color palette for rectangles - 12 unique, highly distinct colors
   const COLOR_PALETTE = [
@@ -157,86 +92,14 @@ const CameraFeedPanel = ({
     '#FFFFFF', // 12. White
   ]
 
-  // Keep socketRef in sync with socket state
-  useEffect(() => {
-    socketRef.current = socket
-  }, [socket])
-
-  // Keep isCapturedRef in sync with isCaptured state
-  useEffect(() => {
-    isCapturedRef.current = isCaptured
-  }, [isCaptured])
-
-  // Keep refs in sync with state
-  useEffect(() => {
-    currentFrameNameRef.current = currentFrameName
-  }, [currentFrameName])
-
-  useEffect(() => {
-    currentPercentageRef.current = currentPercentage
-  }, [currentPercentage])
-
   // Initialize socket connection on mount
   useEffect(() => {
     isMountedRef.current = true
     initializeSocket()
     
-    // Pass resume function to parent
-    if (onResumeReady) {
-      onResumeReady(() => {
-        // Resume the stream - this will handle the socket emission
-        if (socketRef.current) {
-          const resumeStreamMessage = {
-            type: "start_streaming",
-            data: STREAMING_MESSAGE_DATA
-          }
-          
-          socketRef.current.emit('subscribe', resumeStreamMessage)
-          
-          // Clear captured state but keep the image until new frame arrives
-          // This prevents blinking - the old frame stays visible until replaced
-          setIsCaptured(false)
-          setModelResults(null)
-          // DON'T clear capturedImage and currentFrameName - let them be replaced by incoming frames
-        } else {
-          console.error('Socket not available for resume')
-        }
-      })
-    }
-    
-    // Pass reset function to parent
-    if (onResetReady) {
-      onResetReady(() => {
-        // Reset rectangles and states but KEEP the captured frame
-        // DON'T reset: isCaptured, capturedImage, currentFrameName
-        setDetectionRectangles([])
-        setManualRectangles([])
-        setMissingDishes(0)
-        setIsDrawingModeEnabled(false)
-        setSelection(null)
-        setColorMapping({})
-        
-        // Notify parent about reset
-        if (onMappingModeChange) {
-          onMappingModeChange(false, [], [])
-        }
-        if (onMissingDishesUpdate) {
-          onMissingDishesUpdate(0)
-        }
-        if (onManualRectanglesCountUpdate) {
-          onManualRectanglesCountUpdate(0)
-        }
-      })
-    }
-    
     return () => {
       isMountedRef.current = false
       disconnectSocket()
-      // Cleanup countdown interval
-      if (countdownIntervalRef.current !== null) {
-        clearInterval(countdownIntervalRef.current)
-        countdownIntervalRef.current = null
-      }
     }
   }, [])
 
@@ -257,73 +120,6 @@ const CameraFeedPanel = ({
       forceNew: true
     })
 
-    // Subscribe to connection_established event - receives welcome message with food_level_to_complete
-    // This must happen before sending start_streaming
-    newSocket.on('connection_established', (data) => {
-      console.log('🔔 CONNECTION_ESTABLISHED event received!', data)
-      
-      if (!isMountedRef.current) {
-        return
-      }
-      
-      // Only process welcome message once (first connection only)
-      if (hasProcessedWelcomeRef.current) {
-        return
-      }
-      
-      // The message structure is: { type: "welcome", data: { message, server_time, food_level_to_complete, client_id } }
-      const welcomeData = data?.data || data
-      console.log('📥 Welcome message data:', welcomeData)
-      console.log('🔢 food_level_to_complete received:', welcomeData?.food_level_to_complete)
-      
-      if (welcomeData && typeof welcomeData.food_level_to_complete === 'number' && welcomeData.food_level_to_complete > 0) {
-        const foodLevelToComplete = welcomeData.food_level_to_complete
-        console.log('✅ Processing food_level_to_complete:', foodLevelToComplete)
-        
-        // Calculate step size: divide 100 by the number of levels
-        const step = 100 / foodLevelToComplete
-        
-        // Generate food levels array (e.g., if 4: [100, 75, 50, 25, 0])
-        // Round to avoid floating point precision issues
-        const foodLevels: number[] = []
-        for (let i = 0; i < foodLevelToComplete; i++) {
-          const level = 100 - (step * i)
-          foodLevels.push(Math.round(level * 100) / 100) // Round to 2 decimal places
-        }
-        
-        // Always add 0 as the last food level
-        foodLevels.push(0)
-        
-        console.log('📊 Calculated food levels:', foodLevels)
-        console.log('🔢 Total food levels:', foodLevels.length)
-        
-        // Mark as processed (only once)
-        hasProcessedWelcomeRef.current = true
-        
-        // Defer state update to avoid updating during render
-        setTimeout(() => {
-          if (onFoodLevelsUpdate && isMountedRef.current) {
-            console.log('📤 Sending food levels to parent:', foodLevels)
-            onFoodLevelsUpdate(foodLevels)
-          }
-        }, 0)
-      } else {
-        // No food_level_to_complete - use default values (100, 75, 50, 25, 0)
-        const defaultLevels = [100, 75, 50, 25, 0]
-        console.log('⚠️ No food_level_to_complete - using default levels:', defaultLevels)
-        
-        // Mark as processed (only once)
-        hasProcessedWelcomeRef.current = true
-        
-        // Defer state update to avoid updating during render
-        setTimeout(() => {
-          if (onFoodLevelsUpdate && isMountedRef.current) {
-            onFoodLevelsUpdate(defaultLevels)
-          }
-        }, 0)
-      }
-    })
-
     // Connection success handler
     newSocket.on('connect', () => {
       if (!isMountedRef.current) return
@@ -331,27 +127,12 @@ const CameraFeedPanel = ({
       setConnectionStatus('connected')
       reconnectAttempts.current = 0
       
-      // CRITICAL: Check capture button status BEFORE doing anything
-      // When connection is restored and frame is frozen (button shows "Resume"),
-      // DO NOT send start_streaming - user is drawing/mapping and needs same frame
-      const isCaptured = isCapturedRef.current
-      
-      // PRIORITY CHECK: If frame is frozen (button shows "Resume")
-      // DO NOT send start_streaming on connection restore
-      // User is drawing rectangles or mapping - needs the frozen frame to stay frozen
-      if (isCaptured === true) {
-        return // Exit immediately - don't send anything, don't resume stream
+      // Send start_streaming message via 'subscribe' event
+      const startStreamMessage = {
+        type: "start_streaming",
+        data: {}
       }
-      
-      // Only send start_streaming if frame is NOT frozen (button shows "Capture")
-      // This means user is ready for live streaming
-      if (isCaptured === false) {
-        const startStreamMessage = {
-          type: "start_streaming",
-          data: STREAMING_MESSAGE_DATA
-        }
-        newSocket.emit('subscribe', startStreamMessage)
-      }
+      newSocket.emit('subscribe', startStreamMessage)
     })
 
     // Connection error handler
@@ -377,121 +158,50 @@ const CameraFeedPanel = ({
     })
 
     // Stream frames handler - listens for incoming frames
-    // Expected JSON format:
-    // {
-    //   "title": "send_frames",
-    //   "data": {
-    //     "frame_name": "frame_001.jpg",  // optional
-    //     "frame_data": "base64_string_or_data_uri"  // or object with base_64_img property
-    //   }
-    // }
     newSocket.on('stream_frames', (data) => {
       if (!isMountedRef.current) return
-      
-      // CRITICAL: If frame is captured (button shows "Resume"), IGNORE all incoming frames
-      // User is drawing/mapping and needs the frozen frame to stay frozen
-      if (isCapturedRef.current) {
-        // DISABLED: Auto-send stop_streaming after 2 seconds
-        // If frames are still coming in while user is drawing/mapping, send stop_streaming after 2 seconds
-        // This ensures the stream is stopped on the server side
-        // if (!stopStreamTimeoutRef.current && socketRef.current) {
-        //   console.log('⏸️ Scheduling stop_streaming in 2 seconds to stop server from sending frames')
-        //   
-        //   stopStreamTimeoutRef.current = window.setTimeout(() => {
-        //     if (!isMountedRef.current || !socketRef.current) {
-        //       stopStreamTimeoutRef.current = null
-        //       return
-        //     }
-        //     
-        //     // Send stop_streaming message (same as when user clicks Capture button)
-        //     const foodLevel = currentPercentageRef.current
-        //     const frameName = currentFrameNameRef.current || 'unknown'
-        //     const stopStreamMessage = {
-        //       type: "stop_streaming",
-        //       data: {
-        //         frame_name: frameName,
-        //         food_level: foodLevel
-        //       }
-        //     }
-        //     
-        //     console.log('📤 Sending stop_streaming to stop server (frames detected while drawing/mapping)')
-        //     console.log('📤 Stop stream message:', JSON.stringify(stopStreamMessage, null, 2))
-        //     socketRef.current.emit('subscribe', stopStreamMessage)
-        //     
-        //     stopStreamTimeoutRef.current = null
-        //   }, 2000) // 2 seconds delay
-        // }
-        
-        return // Don't process any frames when captured
-      }
       
       try {
         // Parse the data
         let parsedData = typeof data === 'string' ? JSON.parse(data) : data
         
-        // Check for expected format: { title: "send_frames", data: { frame_name, frame_data } }
         if (parsedData && parsedData.title === 'send_frames' && parsedData.data) {
           const frameInfo = parsedData.data
           
-          // Store the current frame name (if provided)
+          // Store the current frame name
           if (frameInfo.frame_name) {
             setCurrentFrameName(frameInfo.frame_name)
           }
           
-          // Process frame_data - supports multiple formats
           if (frameInfo.frame_data) {
             let base64Data = null
             
-            // Format 1: Already a data URI string
+            // Check if it's already a data URI
             if (typeof frameInfo.frame_data === 'string' && frameInfo.frame_data.startsWith('data:image/')) {
               base64Data = frameInfo.frame_data
             } 
-            // Format 2: Object with base_64_img property
+            // Check if it's an object with base_64_img property
             else if (typeof frameInfo.frame_data === 'object' && frameInfo.frame_data.base_64_img) {
               base64Data = `data:image/png;base64,${frameInfo.frame_data.base_64_img}`
             } 
-            // Format 3: Plain base64 string (assumed JPEG)
+            // Assume it's a base64 string (JPEG images)
             else if (typeof frameInfo.frame_data === 'string') {
               // Remove any existing data URI prefix if present
               const base64String = frameInfo.frame_data.replace(/^data:image\/[a-z]+;base64,/, '')
               base64Data = `data:image/jpeg;base64,${base64String}`
             }
             
-            // Update captured image only if not in captured state
-            if (base64Data && !isCapturedRef.current) {
+            if (base64Data && !isCaptured) {
               setCapturedImage(base64Data)
-              // Notify parent with the full captured image for cropping
-              if (onCapturedImageChange) {
-                onCapturedImageChange(base64Data)
-              }
             }
           }
         }
       } catch (error) {
         // Silently handle parsing errors
-        console.error('Error parsing frame data:', error)
       }
     })
 
     // Model results handler - listens for detection results after capture
-    // Expected JSON format:
-    // {
-    //   "type": "model_results",
-    //   "data": {
-    //     "frame_name": "20251110_114046_842_0",
-    //     "food_level": 100,
-    //     "missing_dishes": 1,
-    //     "cv_model_results": {
-    //       "total_dishes": 6,
-    //       "detected_dishes": 5,
-    //       "detection_results": [
-    //         [748, 42, 1190, 505],
-    //         [697, 619, 1143, 1066],
-    //         [1078, 202, 1893, 960]
-    //       ]
-    //     }
-    //   }
-    // }
     newSocket.on('model_results', (data) => {
       if (!isMountedRef.current) return
       
@@ -499,11 +209,10 @@ const CameraFeedPanel = ({
         // Parse the data
         const parsedData = typeof data === 'string' ? JSON.parse(data) : data
         
+        console.log('Model Results Data (for rectangles):', parsedData)
+        
         // Store model results
         setModelResults(parsedData)
-        
-        // Hide loading overlay - model results received
-        setIsWaitingForModelResults(false)
         
         // Notify parent component with model results
         if (onModelResults) {
@@ -511,12 +220,12 @@ const CameraFeedPanel = ({
         }
         
         // Process detection results and assign colors
-        // New format: type === 'model_results' and data.cv_model_results.detection_results
-        if (parsedData?.type === 'model_results' && parsedData.data?.cv_model_results?.detection_results) {
+        if (parsedData?.type === 'img_model_results' && parsedData.data?.model_results?.deetction_results) {
+          console.log('Model Results - Detection Results:', parsedData.data.model_results)
           processDetectionResults(parsedData.data)
           
-          // Extract and set missing_dishes count from data level
-          const missingCount = parsedData.data?.missing_dishes || 0
+          // Extract and set missing_dishes count
+          const missingCount = parsedData.data?.model_results?.missing_dishes || 0
           setMissingDishes(missingCount)
           if (onMissingDishesUpdate) {
             onMissingDishesUpdate(missingCount)
@@ -524,67 +233,6 @@ const CameraFeedPanel = ({
         }
       } catch (error) {
         // Silently handle parsing errors
-        console.error('Error parsing model results:', error)
-      }
-    })
-
-    // Streaming duration warning handler - handles idle timeout countdown
-    // Expected JSON format:
-    // {
-    //   "type": "streaming_duration_warning",
-    //   "data": {
-    //     "session_id": "...",
-    //     "elapsed_seconds": 300,
-    //     "timeout_seconds": 600,
-    //     "remaining_seconds": 300,
-    //     "message": "Session will timeout in 300s due to inactivity.",
-    //     "timestamp": "2025-11-08T14:30:22.123456"
-    //   }
-    // }
-    newSocket.on('streaming_duration_warning', (data) => {
-      if (!isMountedRef.current) return
-      
-      try {
-        // Parse the data
-        const parsedData = typeof data === 'string' ? JSON.parse(data) : data
-        
-        // Check if this is the streaming_duration_warning event
-        if (parsedData?.type === 'streaming_duration_warning' && parsedData.data?.remaining_seconds) {
-          const remainingSeconds = parsedData.data.remaining_seconds
-          
-          // Start countdown timer
-          setCountdownSeconds(remainingSeconds)
-          
-          // Clear any existing interval
-          if (countdownIntervalRef.current !== null) {
-            clearInterval(countdownIntervalRef.current)
-          }
-          
-          // Start countdown timer that decrements every second
-          countdownIntervalRef.current = window.setInterval(() => {
-            setCountdownSeconds((prev) => {
-              if (prev === null || prev <= 0) {
-                // Timer reached 0 - redirect to form page
-                if (countdownIntervalRef.current !== null) {
-                  clearInterval(countdownIntervalRef.current)
-                  countdownIntervalRef.current = null
-                }
-                
-                // Call redirect callback
-                if (onTimeoutRedirect) {
-                  onTimeoutRedirect()
-                }
-                
-                return null
-              }
-              
-              // Decrement by 1
-              return prev - 1
-            })
-          }, 1000) // Update every second
-        }
-      } catch (error) {
-        console.error('Error parsing streaming duration warning:', error)
       }
     })
 
@@ -620,12 +268,6 @@ const CameraFeedPanel = ({
       window.clearTimeout(reconnectTimeoutRef.current)
     }
     
-    // Clear stop_streaming timeout if exists
-    if (stopStreamTimeoutRef.current !== null) {
-      window.clearTimeout(stopStreamTimeoutRef.current)
-      stopStreamTimeoutRef.current = null
-    }
-    
     if (socket) {
       socket.disconnect()
       setSocket(null)
@@ -657,27 +299,26 @@ const CameraFeedPanel = ({
   /**
    * Processes detection results and assigns unique colors to each detection
    * Stores the color mapping for use in next steps
-   * New format: detection_results is array of coordinate arrays [x1, y1, x2, y2]
    */
   const processDetectionResults = (resultsData: any) => {
     try {
-      // New format: cv_model_results.detection_results is array of coordinate arrays
-      const detections = resultsData?.cv_model_results?.detection_results || []
+      const detections = resultsData?.model_results?.deetction_results || []
+      console.log('Detection Results (coordinates for rectangles):', detections)
       
       const rectangles: DetectionRectangle[] = []
       const mapping: ColorMapping = {}
       
       detections.forEach((detection: any, index: number) => {
-        // New format: detection is directly an array [x1, y1, x2, y2]
-        if (Array.isArray(detection) && detection.length === 4) {
+        // Only process detections with valid coordinates
+        if (detection?.coordinates && Array.isArray(detection.coordinates) && detection.coordinates.length === 4) {
           const color = COLOR_PALETTE[index % COLOR_PALETTE.length]
           mapping[index] = color
           
           rectangles.push({
             index,
-            coordinates: detection as [number, number, number, number],
+            coordinates: detection.coordinates as [number, number, number, number],
             color,
-            dishName: undefined // New format doesn't include dish_name or dish_id
+            dishName: detection.dish_name || detection.dish_id
           })
         }
       })
@@ -894,31 +535,6 @@ const CameraFeedPanel = ({
   }
 
   /**
-   * Gets all rectangles data (color + coordinates) from both detection and manual rectangles
-   */
-  const getAllRectanglesData = (): RectangleData[] => {
-    const rectangles: RectangleData[] = []
-    
-    // Add detection rectangles
-    detectionRectangles.forEach(rect => {
-      rectangles.push({
-        color: rect.color,
-        coordinates: rect.coordinates
-      })
-    })
-    
-    // Add manual rectangles
-    manualRectangles.forEach(rect => {
-      rectangles.push({
-        color: rect.color,
-        coordinates: rect.coordinates
-      })
-    })
-    
-    return rectangles
-  }
-
-  /**
    * Handles toggling drawing mode on/off
    */
   const handleToggleDrawing = () => {
@@ -929,11 +545,12 @@ const CameraFeedPanel = ({
    * Handles starting mapping mode
    */
   const handleStartMapping = () => {
-    // Notify parent with mapping mode, used colors, and rectangles data
+    setIsMappingMode(true)
+    
+    // Notify parent with mapping mode and all used colors
     if (onMappingModeChange) {
       const usedColors = getAllUsedColors()
-      const rectanglesData = getAllRectanglesData()
-      onMappingModeChange(true, usedColors, rectanglesData)
+      onMappingModeChange(true, usedColors)
     }
   }
 
@@ -1133,69 +750,43 @@ const CameraFeedPanel = ({
   }
 
   const handleCaptureStream = () => {
-    // Use socketRef instead of socket state to ensure we have the latest socket instance
-    if (!socketRef.current) {
-      console.error('❌ Socket not available for capture')
+    if (!socket) {
       return
     }
     
     if (!isCaptured) {
       // First click: Stop the stream (freeze current frame)
       if (!currentFrameName) {
-        console.error('❌ No current frame name available')
         return
       }
       
-      // Clear countdown timer - user is now working
-      if (countdownIntervalRef.current !== null) {
-        clearInterval(countdownIntervalRef.current)
-        countdownIntervalRef.current = null
-      }
-      setCountdownSeconds(null)
-      
       // Freeze the frame
       setIsCaptured(true)
-      // Show loading overlay - waiting for model_results
-      setIsWaitingForModelResults(true)
+        
+      // Subscribe to stop_stream
+      socket.emit('subscribe', 'stop_stream')
       
-      // Ensure parent has the full captured image for cropping
-      if (capturedImage && onCapturedImageChange) {
-        onCapturedImageChange(capturedImage)
-      }
-      
-      // Convert percentage to food_level (remove % sign, use number value)
-      // currentPercentage: 100, 75, 50, 25 -> food_level: 100, 75, 50, 25
-      const foodLevel = currentPercentage
-      
-      // Send stop_streaming message with food_level from currentPercentage
+      // Send stop_streaming message
       const stopStreamMessage = {
         type: "stop_streaming",
         data: {
           frame_name: currentFrameName,
-          food_level: foodLevel
+          food_level: 1
         }
       }
       
-      // Emit stop_streaming message via subscribe event
-      socketRef.current.emit('subscribe', stopStreamMessage)
+      socket.emit('subscribe', stopStreamMessage)
     } else {
       // Second click: Resume the stream
-      // Clear any pending stop_streaming timeout
-      if (stopStreamTimeoutRef.current !== null) {
-        window.clearTimeout(stopStreamTimeoutRef.current)
-        stopStreamTimeoutRef.current = null
-      }
-      
       const resumeStreamMessage = {
         type: "start_streaming",
-        data: STREAMING_MESSAGE_DATA
+        data: {}
       }
       
-      socketRef.current.emit('subscribe', resumeStreamMessage)
+      socket.emit('subscribe', resumeStreamMessage)
       
       // Clear captured state and reset rectangles
       setIsCaptured(false)
-      setIsWaitingForModelResults(false) // Clear loading state
       setDetectionRectangles([])
       setColorMapping({})
       setModelResults(null)
@@ -1208,16 +799,6 @@ const CameraFeedPanel = ({
       // Reset manual rectangles count in parent
       if (onManualRectanglesCountUpdate) {
         onManualRectanglesCountUpdate(0)
-      }
-      
-      // Clear captured results in parent
-      if (onClearCapturedResults) {
-        onClearCapturedResults()
-      }
-      
-      // Reset mapping mode and colors
-      if (onMappingModeChange) {
-        onMappingModeChange(false, [], [])
       }
     }
   }
@@ -1250,18 +831,6 @@ const CameraFeedPanel = ({
               {getConnectionStatusText()}
             </span>
           </div>
-          
-          {/* Countdown Timer - shows when streaming_duration_warning is received */}
-          {countdownSeconds !== null && countdownSeconds > 0 && (
-            <div className="flex items-center space-x-2 bg-red-600/20 border border-red-500 px-3 py-1 rounded-full">
-              <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-sm font-medium text-red-400">
-                Session timeout in: {countdownSeconds}s
-              </span>
-            </div>
-          )}
           <div className="flex items-center space-x-1 text-[#5A5D66] text-sm">
             <span>|</span>
             <span className="font-medium">{flightData.airline}</span>
@@ -1360,22 +929,20 @@ const CameraFeedPanel = ({
                     borderStyle: 'solid',
                     borderWidth: '4px',
                   }}
-                >                  
-                  {/* Close button - hidden in mapping mode */}
-                  {!isMappingModeActive && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemoveDetectionRectangle(rect.index)
-                      }}
-                      className="absolute -top-2 -right-2 bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors pointer-events-auto cursor-pointer"
-                      style={{ zIndex: 10 }}
-                    >
-                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
+                >
+                  {/* Close button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRemoveDetectionRectangle(rect.index)
+                    }}
+                    className="absolute -top-2 -right-2 bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors pointer-events-auto cursor-pointer"
+                    style={{ zIndex: 10 }}
+                  >
+                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               )
             })}
@@ -1402,22 +969,20 @@ const CameraFeedPanel = ({
                     borderStyle: 'solid',
                     borderWidth: '4px',
                   }}
-                >                  
-                  {/* Close button - hidden in mapping mode */}
-                  {!isMappingModeActive && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemoveManualRectangle(rect.id)
-                      }}
-                      className="absolute -top-2 -right-2 bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors pointer-events-auto cursor-pointer"
-                      style={{ zIndex: 10 }}
-                    >
-                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
+                >
+                  {/* Close button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRemoveManualRectangle(rect.id)
+                    }}
+                    className="absolute -top-2 -right-2 bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors pointer-events-auto cursor-pointer"
+                    style={{ zIndex: 10 }}
+                  >
+                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               )
             })}
@@ -1434,21 +999,6 @@ const CameraFeedPanel = ({
                   borderStyle: 'dashed',
                 }}
               />
-            )}
-            
-            {/* Loading overlay - shows when waiting for model_results */}
-            {isWaitingForModelResults && (
-              <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
-                <div className="flex flex-col items-center space-y-4">
-                  {/* Spinner */}
-                  <svg className="animate-spin h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {/* Loading text */}
-                  <p className="text-white text-lg font-medium">Processing image...</p>
-                </div>
-              </div>
             )}
           </div>
         ) : (
